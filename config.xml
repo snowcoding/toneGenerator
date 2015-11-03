@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+    <widget xmlns   = "http://www.w3.org/ns/widgets"
+        xmlns:gap   = "http://phonegap.com/ns/1.0"
+        id          = "com.snowcoder"
+        versionCode = "1" 
+        version     = "0.0.8" >
+
+    <!-- versionCode is optional and Android only -->
+
+    <name>Basic Tone Gen</name>
+
+    <description>
+        Basic Tone Gen
+    </description>
+
+    <author href="https://build.phonegap.com" email="vimalshah77@gmail.com">
+        Vimal Shah 
+    </author>
+
+</widget>
