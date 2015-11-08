@@ -4,6 +4,10 @@ document.getElementById("stopTone").addEventListener("click", stopTone);
 
 //Basic start/stop functions
 function startTone() {
+    if (typeof oscillator !== 'undefined') {
+        return;
+    }
+
     //Initialize the AudioContext Object and connect to destination
     var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     oscillator = audioCtx.createOscillator();
@@ -19,6 +23,11 @@ function startTone() {
 }
 
 function stopTone() {
+    if (typeof oscillator === 'undefined') {
+        return;
+    }
+
     oscillator.stop();
     oscillator.disconnect();
+    delete oscillator;
 }
