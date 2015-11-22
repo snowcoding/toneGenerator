@@ -50,14 +50,9 @@ function signalServer() {
         return;
     }
 
-    var xmlHttp = new XMLHttpRequest();
-    xmlHttp.onreadystatechange = function() {
-        if (xmlHttp.readyState == 4 && xmlHttp.status == 200) {
-            document.getElementById("signalConsole").innerHTML = xmlHttp.responseText;
-            //callback(xmlHttp.responseText);
-        }
-    }
-    xmlHttp.open("GET", input, true); // true for asynchronous
-    xmlHttp.send(null);
-//    document.getElementById("signalConsole").innerHTML = input;
+    var socket = io(input);
+    socket.on('server msg', function(message) {
+        console.log('received message from server: ' + message);
+        document.getElementById("signalConsole").innerHTML = message;
+    });
 }

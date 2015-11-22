@@ -24,11 +24,12 @@
 
     <p>Specify signal server</p>
     <input type="text" id="signalInput" autofocus value = "http://hostname:port" />
-    <input type="submit" id="signalInputSubmit" value="Submit" />
+    <input type="submit" id="signalInputSubmit" value="Connect" />
 
     <p id="signalConsole"></p>
 
     <script src="phonegap.js"></script>
+    <script src="node_modules/socket.io/node_modules/socket.io-client/socket.io.js"></script>
     <script src="tonegen.js"></script>
 
 </body>
