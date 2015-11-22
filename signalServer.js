@@ -7,30 +7,32 @@ http.listen(port);
 
 var sockets = new Map();
 
+function updatePeers() {
+    sockets.forEach (function(socket, id, map) {
+        peers = [];
+        for (var key of sockets.keys()) {
+            if (key == id) {
+                continue;
+            }
+            peers.push(key);
+        }
+        socket.emit('server msg', 'signal peers: ' + peers);
+    });
+}
+
 io.on('connection', function(socket) {
-    console.log('a user connected with id: ' + socket.id);
+    console.log('user ' + socket.id + ' connected');
 
     peers = [];
     for (var id of sockets.keys()) {
         peers.push(id);
     }
-    socket.emit('server msg', 'signal peers: ' + peers);
 
     sockets.set(socket.id, socket);
-
     socket.on('disconnect', function() {
-        console.log('user disconnected');
+        console.log('user ' + socket.id + ' disconnected');
         sockets.delete(socket.id);
-
-        sockets.forEach (function(peer, id, map) {
-            peers = [];
-            for (var key of sockets.keys()) {
-                if (key == id) {
-                    continue;
-                }
-                peers.push(key);
-            }
-            peer.emit('server msg', 'signal peers: ' + peers);
-        });
+        updatePeers();
     });
+    updatePeers();
 });
