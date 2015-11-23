@@ -27,10 +27,15 @@
     <input type="submit" id="signalInputSubmit" value="Connect" />
 
     <p id="signalConsole"></p>
+    <p id="appConsole"></p>
+
+    <!-- Client socket.io libarary -->
+    <script src="node_modules/socket.io/node_modules/socket.io-client/socket.io.js"></script>
+
+    <!-- WebRTC compatibility adapter -->
+    <script src="lib/adapter.js"></script>
 
     <script src="phonegap.js"></script>
-    <script src="node_modules/socket.io/node_modules/socket.io-client/socket.io.js"></script>
     <script src="tonegen.js"></script>
-
 </body>
 </html>

@@ -7,6 +7,18 @@ function logAppConsole(message) {
     document.getElementById("appConsole").innerHTML = message;
 }
 
+function logSignalConsole(message) {
+    document.getElementById("signalConsole").innerHTML = message;
+}
+
+function logTraceConsole(message) {
+    console.log(message);
+}
+
+function logErrorConsole(message) {
+    console.log('Error: ' + message);
+}
+
 //Basic start/stop functions
 function startTone() {
     if (typeof oscillator !== 'undefined') {
@@ -43,6 +55,94 @@ function stopTone() {
     logAppConsole('tone stopped');
 }
 
+// It looks like Google provides a STUN server that is available for anyone to use.
+var iceConfiguration = webrtcDetectedBrowser === 'firefox' ?
+    {'iceServers': [
+        {'url':'stun:23.21.150.121'} // number IP
+    ]} :
+    {'iceServers': [
+        {'url': 'stun:stun.l.google.com:19302'}
+    ]};
+
+var serverServer;
+var targetChannel;
+var targetConn;
+var peerConns = new Map();
+var peerControls = new Map();
+var peerConn;
+var peerID;
+
+function peerSessionDescription(sessionDescription) {
+    peerConn.setLocalDescription(sessionDescription, function() {
+        var message = new Object;
+        message.session = sessionDescription;
+        message.peer = peerID;
+        serverSocket.emit('initiate connection', JSON.stringify(message));
+    }, logTraceConsole);
+}
+
+// "peer" is captured and therefore we know which target is suggesting a ICE candidate
+function peerIceCandidate(peer) {
+    return function (message) {
+        logTraceConsole('target ICE candidate from: ' + peer);
+        if (message.candidate) {
+            var response = new Object;
+            response.peer = peer;
+            response.candidate = message.candidate;
+            serverSocket.emit('initiator ICE', JSON.stringify(response));
+        }
+    }
+}
+
+// "peerChannel" is captured and therefore we know the channel state
+function peerChannelStateChange(peerChannel) {
+    return function () {
+        logTraceConsole('Target state: ' + peerChannel.readyState);
+        if (peerChannel.readyState == 'open') {
+            peerChannel.send('hello from the initiator');
+        }
+    }
+}
+
+function createOffer(peer) {
+    if (peerConns.has(peer)) {
+        // We already have an open connection to the peer
+        // TODO: assert that this is true
+        return;
+    }
+
+    // TODO: the value side of the map should be an object that inherits from
+    //       RTCPeerConnection so that it can know the peer ID.
+    peerID = peer;
+    peerConn = new RTCPeerConnection(iceConfiguration)
+    peerConn.onicecandidate = peerIceCandidate(peerID);
+
+    var peerChannel = peerConn.createDataChannel('control')
+    peerChannel.onmessage = function (message) {
+        logTraceConsole('Initiator received message: ' + message.data);
+        logSignalConsole(message.data);
+    }
+    peerChannel.onopen = peerChannelStateChange(peerChannel);
+
+    peerControls.set(peer, peerChannel);
+    peerConns.set(peer, peerConn);
+
+    peerConn.createOffer(peerSessionDescription, logErrorConsole);
+}
+
+function answerOffer(answer) {
+    logTraceConsole('answer offer');
+    targetConn.setLocalDescription(answer, function() {
+        serverSocket.emit('answer connection', answer);
+    }, logTraceConsole);
+}
+
+function completeOffer(peer, session) {
+    peerConns.get(peer).setRemoteDescription(new RTCSessionDescription(session), function() {
+        logTraceConsole('connection established');
+    }, logErrorConsole);
+}
+
 function signalServer() {
     var input = document.getElementById("signalInput").value;
     if (input.length === 0) {
@@ -50,9 +150,77 @@ function signalServer() {
         return;
     }
 
-    var socket = io(input);
-    socket.on('server msg', function(message) {
-        console.log('received message from server: ' + message);
-        document.getElementById("signalConsole").innerHTML = message;
+    serverSocket = io(input);
+
+    serverSocket.on('initiate peers', function(message) {
+        var peers = JSON.parse(message);
+        peers.forEach( function(peer, index, array) {
+            createOffer(peer);
+        });
+        logSignalConsole('initiate peers: ' + peers);
     });
+
+    serverSocket.on('signal peers', function(message) {
+        var peers = JSON.parse(message);
+        logSignalConsole('signal peers: ' + peers);
+    });
+
+    serverSocket.on('offer connection', function(message) {
+        logTraceConsole('got ' + message.type);
+        targetConn.setRemoteDescription(new RTCSessionDescription(message), function() {
+            logTraceConsole('create answer');
+            targetConn.createAnswer(answerOffer, logErrorConsole);
+        }, logErrorConsole);
+    });
+
+    serverSocket.on('complete connection', function(message) {
+        var message = JSON.parse(message);
+        logTraceConsole('got ' + message.session.type + ' from ' + message.peer);
+        completeOffer(message.peer, message.session);
+    });
+
+    serverSocket.on('target accepted ICE', function(message) {
+        var message = JSON.parse(message);
+        logTraceConsole('got accept ICE from ' + message.peer);
+        peerConns.get(message.peer).addIceCandidate(new RTCIceCandidate(message.candidate));
+    });
+
+    serverSocket.on('target accepted ICE', function(message) {
+        logTraceConsole('got accept ICE from initiator');
+        targetConn.addIceCandidate(new RTCIceCandidate(message));
+    });
+
+    // First we need to setup a peer connection
+    // Reference: https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection
+    targetConn = new RTCPeerConnection(iceConfiguration);
+    
+    targetConn.onicecandidate = function (message) {
+        logTraceConsole('ICE candidate from initiator');
+        if (message.candidate) {
+            serverSocket.emit('target ICE', message.candidate);
+        }
+    };
+
+    // If the server asks us to initiate the data connection, oblige.
+    targetConn.onnegotiationneeded = function () {
+        logTraceConsole('Negotiation requested');
+    };
+
+    // Setup the target side of a data channel (initiator will create data channel)
+    targetConn.ondatachannel = function (message) {
+        logTraceConsole('Receiving channel');
+        targetChannel = message.channel;
+        // See: https://developer.mozilla.org/en-US/docs/Web/API/RTCDataChannel
+        targetChannel.onmessage = function (message) {
+            logTraceConsole('Target received message: ' + message.data);
+            logSignalConsole(message.data);
+        }
+        targetChannel.onopen = function () {
+            logTraceConsole('Target state: ' + targetChannel.readyState);
+            targetChannel.send('hello from the target');
+        }
+        targetChannel.onclose = function () {
+            logTraceConsole('Target state: ' + targetChannel.readyState);
+        }
+    }
 }
