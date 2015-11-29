@@ -19,6 +19,26 @@ function logErrorConsole(message) {
     console.log('Error: ' + message);
 }
 
+function processQuery(query) {
+    query = query.replace('?', '');
+    var pairs = query.split('&');
+    options = new Map();
+    pairs.forEach( function(item, index) {
+        var pair = item.split('=');
+        if (pair.length == 2) {
+            options.set(pair[0], pair[1])
+        } else {
+            logErrorConsole('malformed option ' + item);
+        }
+    });
+    if (options.has('host')) {
+        document.getElementById("signalInput").value = options.get('host');
+    }
+    if (options.has('connect')) {
+        signalServer();
+    }
+}
+
 //Basic start/stop functions
 function startTone() {
     if (typeof oscillator !== 'undefined') {
@@ -224,3 +244,5 @@ function signalServer() {
         }
     }
 }
+
+processQuery(window.location.search);
