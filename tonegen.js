@@ -19,6 +19,10 @@ function logErrorConsole(message) {
     console.log('Error: ' + message);
 }
 
+function logNativeConsole(message) {
+    window.dump(message + '\n');
+}
+
 function processQuery(query) {
     query = query.replace('?', '');
     var pairs = query.split('&');
@@ -119,6 +123,7 @@ function peerChannelStateChange(peerChannel) {
     return function () {
         logTraceConsole('Target state: ' + peerChannel.readyState);
         if (peerChannel.readyState == 'open') {
+            logNativeConsole('Channel open');
             peerChannel.send('hello from the initiator');
         }
     }
@@ -237,6 +242,7 @@ function signalServer() {
         }
         targetChannel.onopen = function () {
             logTraceConsole('Target state: ' + targetChannel.readyState);
+            logNativeConsole('Channel open');
             targetChannel.send('hello from the target');
         }
         targetChannel.onclose = function () {
