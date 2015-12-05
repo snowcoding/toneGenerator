@@ -210,7 +210,7 @@ function signalServer() {
         peerConns.get(message.peer).addIceCandidate(new RTCIceCandidate(message.candidate));
     });
 
-    serverSocket.on('target accepted ICE', function(message) {
+    serverSocket.on('initiator ICE', function(message) {
         logTraceConsole('got accept ICE from initiator');
         targetConn.addIceCandidate(new RTCIceCandidate(message));
     });
