@@ -1,3 +1,5 @@
+"use strict"
+
 var app = require('express')();
 var http = require('http').Server(app);
 var io = require('socket.io')(http);
@@ -11,7 +13,7 @@ var initiatorID = 0;
 function updatePeers() {
     var initiator = true;
     sockets.forEach( function(socket, id, map) {
-        peers = [];
+        var peers = [];
         for (var key of sockets.keys()) {
             if (key == id) {
                 continue;
@@ -37,11 +39,6 @@ function updatePeers() {
 // (including the call to updatePeers). This obviously won't scale.
 io.on('connection', function(socket) {
     console.log('user ' + socket.id + ' connected');
-
-    peers = [];
-    for (var id of sockets.keys()) {
-        peers.push(id);
-    }
 
     sockets.set(socket.id, socket);
 

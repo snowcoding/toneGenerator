@@ -1,3 +1,5 @@
+"use strict"
+
 // Simple web server to provide index.html to other clients on the network
 var express = require('express');
 var app = require('express')();

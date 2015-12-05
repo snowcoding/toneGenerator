@@ -1,3 +1,5 @@
+"use strict"
+
 //Add Event Listeners
 document.getElementById("startTone").addEventListener("click", startTone);
 document.getElementById("stopTone").addEventListener("click", stopTone);
@@ -26,7 +28,7 @@ function logNativeConsole(message) {
 function processQuery(query) {
     query = query.replace('?', '');
     var pairs = query.split('&');
-    options = new Map();
+    var options = new Map();
     pairs.forEach( function(item, index) {
         var pair = item.split('=');
         if (pair.length == 2) {
@@ -74,7 +76,7 @@ function stopTone() {
 
     oscillator.stop();
     oscillator.disconnect();
-    delete oscillator;
+    oscillator = null;
 
     logAppConsole('tone stopped');
 }
@@ -88,7 +90,7 @@ var iceConfiguration = webrtcDetectedBrowser === 'firefox' ?
         {'url': 'stun:stun.l.google.com:19302'}
     ]};
 
-var serverServer;
+var serverSocket;
 var targetChannel;
 var targetConn;
 var peerConns = new Map();
