@@ -3,7 +3,7 @@
 //Add Event Listeners
 document.getElementById("startTone").addEventListener("click", startTone);
 document.getElementById("stopTone").addEventListener("click", stopTone);
-document.getElementById("signalInputSubmit").addEventListener("click", signalServer);
+document.getElementById("signalInputSubmit").addEventListener("click", connectSignalServer);
 
 function logAppConsole(message) {
     document.getElementById("appConsole").innerHTML = message;
@@ -41,7 +41,7 @@ function processQuery(query) {
         document.getElementById("signalInput").value = options.get('host');
     }
     if (options.has('connect')) {
-        signalServer();
+        connectSignalServer();
     }
 }
 
@@ -103,7 +103,7 @@ function peerSessionDescription(sessionDescription) {
         var message = new Object;
         message.session = sessionDescription;
         message.peer = peerID;
-        serverSocket.emit('initiate connection', JSON.stringify(message));
+        serverSocket.emit('initiate connection', message);
     }, logTraceConsole);
 }
 
@@ -115,7 +115,7 @@ function peerIceCandidate(peer) {
             var response = new Object;
             response.peer = peer;
             response.candidate = message.candidate;
-            serverSocket.emit('initiator ICE', JSON.stringify(response));
+            serverSocket.emit('initiator ICE', response);
         }
     }
 }
@@ -170,7 +170,7 @@ function completeOffer(peer, session) {
     }, logErrorConsole);
 }
 
-function signalServer() {
+function connectSignalServer() {
     var input = document.getElementById("signalInput").value;
     if (input.length === 0) {
         alert("Please specify a valid hostname and port");
@@ -180,7 +180,7 @@ function signalServer() {
     serverSocket = io(input);
 
     serverSocket.on('initiate peers', function(message) {
-        var peers = JSON.parse(message);
+        var peers = message;
         peers.forEach( function(peer, index, array) {
             createOffer(peer);
         });
@@ -188,7 +188,7 @@ function signalServer() {
     });
 
     serverSocket.on('signal peers', function(message) {
-        var peers = JSON.parse(message);
+        var peers = message;
         logSignalConsole('signal peers: ' + peers);
     });
 
@@ -201,13 +201,11 @@ function signalServer() {
     });
 
     serverSocket.on('complete connection', function(message) {
-        var message = JSON.parse(message);
         logTraceConsole('got ' + message.session.type + ' from ' + message.peer);
         completeOffer(message.peer, message.session);
     });
 
     serverSocket.on('target accepted ICE', function(message) {
-        var message = JSON.parse(message);
         logTraceConsole('got accept ICE from ' + message.peer);
         peerConns.get(message.peer).addIceCandidate(new RTCIceCandidate(message.candidate));
     });
@@ -220,7 +218,7 @@ function signalServer() {
     // First we need to setup a peer connection
     // Reference: https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection
     targetConn = new RTCPeerConnection(iceConfiguration);
-    
+
     targetConn.onicecandidate = function (message) {
         logTraceConsole('ICE candidate from initiator');
         if (message.candidate) {

@@ -26,11 +26,11 @@ function updatePeers() {
         // initiator disconnects.
         if (initiator) {
             console.log('user ' + socket.id + ' is the initiator');
-            socket.emit('initiate peers', JSON.stringify(peers));
+            socket.emit('initiate peers', peers);
             initiator = false;
             initiatorID = socket.id;
         } else {
-            socket.emit('signal peers', JSON.stringify(peers));
+            socket.emit('signal peers', peers);
         }
     });
 }
@@ -49,7 +49,6 @@ io.on('connection', function(socket) {
     });
 
     socket.on('initiate connection', function(message) {
-        message = JSON.parse(message);
         console.log('user ' + socket.id + ' initiating connection with ' + message.peer);
         sockets.get(message.peer).emit('offer connection', message.session);
     });
@@ -59,7 +58,7 @@ io.on('connection', function(socket) {
         var message = new Object;
         message.peer = socket.id;
         message.session = session;
-        sockets.get(initiatorID).emit('complete connection', JSON.stringify(message));
+        sockets.get(initiatorID).emit('complete connection', message);
     });
 
     socket.on('target ICE', function(candidate) {
@@ -67,11 +66,10 @@ io.on('connection', function(socket) {
         var message = new Object;
         message.peer = socket.id;
         message.candidate = candidate;
-        sockets.get(initiatorID).emit('target accepted ICE', JSON.stringify(message));
+        sockets.get(initiatorID).emit('target accepted ICE', message);
     });
 
     socket.on('initiator ICE', function(message) {
-        message = JSON.parse(message);
         console.log('user ' + socket.id + ' accepted ICE candidate from ' + message.peer);
         sockets.get(message.peer).emit('initiator accepted ICE', message.candidate);
     });
