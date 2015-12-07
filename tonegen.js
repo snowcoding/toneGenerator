@@ -95,16 +95,16 @@ var targetChannel;
 var targetConn;
 var peerConns = new Map();
 var peerControls = new Map();
-var peerConn;
-var peerID;
 
-function peerSessionDescription(sessionDescription) {
-    peerConn.setLocalDescription(sessionDescription, function() {
-        var message = new Object;
-        message.session = sessionDescription;
-        message.peer = peerID;
-        serverSocket.emit('initiate connection', message);
-    }, logTraceConsole);
+function peerSessionDescription(peer, conn) {
+    return function (sessionDescription) {
+        conn.setLocalDescription(sessionDescription, function() {
+            var message = new Object;
+            message.session = sessionDescription;
+            message.peer = peer;
+            serverSocket.emit('initiate connection', message);
+        }, logErrorConsole);
+    };
 }
 
 // "peer" is captured and therefore we know which target is suggesting a ICE candidate
@@ -117,7 +117,7 @@ function peerIceCandidate(peer) {
             response.candidate = message.candidate;
             serverSocket.emit('initiator ICE', response);
         }
-    }
+    };
 }
 
 // "peerChannel" is captured and therefore we know the channel state
@@ -128,7 +128,7 @@ function peerChannelStateChange(peerChannel) {
             logNativeConsole('Channel open');
             peerChannel.send('hello from the initiator');
         }
-    }
+    };
 }
 
 function createOffer(peer) {
@@ -140,8 +140,8 @@ function createOffer(peer) {
 
     // TODO: the value side of the map should be an object that inherits from
     //       RTCPeerConnection so that it can know the peer ID.
-    peerID = peer;
-    peerConn = new RTCPeerConnection(iceConfiguration)
+    var peerID = peer;
+    var peerConn = new RTCPeerConnection(iceConfiguration)
     peerConn.onicecandidate = peerIceCandidate(peerID);
 
     var peerChannel = peerConn.createDataChannel('control')
@@ -154,14 +154,14 @@ function createOffer(peer) {
     peerControls.set(peer, peerChannel);
     peerConns.set(peer, peerConn);
 
-    peerConn.createOffer(peerSessionDescription, logErrorConsole);
+    peerConn.createOffer(peerSessionDescription(peerID, peerConn), logErrorConsole);
 }
 
 function answerOffer(answer) {
     logTraceConsole('answer offer');
     targetConn.setLocalDescription(answer, function() {
         serverSocket.emit('answer connection', answer);
-    }, logTraceConsole);
+    }, logErrorConsole);
 }
 
 function completeOffer(peer, session) {
