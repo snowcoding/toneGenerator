@@ -7,72 +7,119 @@ var port = 1979;
 
 http.listen(port);
 
-var sockets = new Map();
-var initiatorID = 0;
-
-function updatePeers() {
-    var initiator = true;
-    sockets.forEach( function(socket, id, map) {
-        var peers = [];
-        for (var key of sockets.keys()) {
-            if (key == id) {
-                continue;
-            }
-            peers.push(key);
+function assert(condition, message) {
+    if (!condition) {
+        message = message || "assert";
+        if (typeof Error !== "undefined") {
+            throw new Error(message);
         }
-
-        // Whomever we find first will run the show. Maps are ordered
-        // so the only way we will change our minds is if the current
-        // initiator disconnects.
-        if (initiator) {
-            console.log('user ' + socket.id + ' is the initiator');
-            socket.emit('initiate peers', peers);
-            initiator = false;
-            initiatorID = socket.id;
-        } else {
-            socket.emit('signal peers', peers);
-        }
-    });
+        throw message; // Fallback
+    }
 }
+
+var PeerGroup = function(groupName) {
+    this.name = groupName;
+    this.peers = {}
+    this.initiatorID = null;
+};
+
+PeerGroup.prototype.electInitiator = function() {
+    var peerIDs = Object.keys(this.peers);
+    assert(peerIDs.length >= 1, 'no initiator to elect');
+    return peerIDs[0];
+};
+
+PeerGroup.prototype.initiatorChanged = function() {
+    if (this.initiatorID != this.electInitiator()) {
+        this.initiatorID = this.electInitiator();
+        console.log(this.initiatorID + ' is the initiator');
+        return true;
+    }
+    return false;
+};
+
+PeerGroup.prototype.getTargetIDs = function () {
+    var peerIDs = Object.keys(this.peers);
+    assert(peerIDs.length >= 1, 'no known targets');
+    peerIDs.shift();
+    return peerIDs;
+};
+
+PeerGroup.prototype.sendPeerMessage = function (peerID, event, message) {
+    assert(this.peers.hasOwnProperty(peerID), 'unknown peerID ' + peerID);
+    this.peers[peerID].emit(event, message);
+};
+
+PeerGroup.prototype.sendInitiatorMessage = function (event, message) {
+    this.sendPeerMessage(this.initiatorID, event, message);
+};
+
+PeerGroup.prototype.addPeer = function(peerID, socket) {
+    assert(!this.peers.hasOwnProperty(peerID), 'peerID ' + peerID + ' already exists');
+    this.peers[peerID] = socket;
+    if (this.initiatorChanged()) {
+        var initiatorSocket = this.peers[this.initiatorID];
+        initiatorSocket.emit('initiate peers', this.getTargetIDs());
+    } else {
+        // FIXME: add a single peer
+        var initiatorSocket = this.peers[this.initiatorID];
+        initiatorSocket.emit('initiate peers', this.getTargetIDs());
+    }
+};
+
+PeerGroup.prototype.removePeer = function(peerID) {
+    assert(this.peers.hasOwnProperty(peerID), 'unknown peerID' + peerID);
+    delete this.peers[peerID];
+    if (Object.keys(this.peers).length == 0) {
+        this.initiatorID = null;
+    } else if (this.initiatorChanged()) {
+        // FIXME: old initiator must have disconnected... how to make this more obvious?
+        var initiatorSocket = this.peers[this.initiatorID];
+        initiatorSocket.emit('signal peers', this.getTargetIDs());
+    } else {
+        //FIXME: remove a single peer
+        var initiatorSocket = this.peers[this.initiatorID];
+        initiatorSocket.emit('initiate peers', this.getTargetIDs());
+    }
+};
+
+var peerGroup = new PeerGroup('default');
 
 // Javascript is single-threaded and everything we are doing is blocking
 // (including the call to updatePeers). This obviously won't scale.
 io.on('connection', function(socket) {
     console.log('user ' + socket.id + ' connected');
 
-    sockets.set(socket.id, socket);
-
     socket.on('disconnect', function() {
         console.log('user ' + socket.id + ' disconnected');
-        sockets.delete(socket.id);
-        updatePeers();
+        peerGroup.removePeer(socket.id, socket);
     });
 
     socket.on('initiate connection', function(message) {
         console.log('user ' + socket.id + ' initiating connection with ' + message.peer);
-        sockets.get(message.peer).emit('offer connection', message.session);
+        peerGroup.sendPeerMessage(message.peer, 'offer connection', message.session);
     });
 
     socket.on('answer connection', function(session) {
-        console.log('user ' + socket.id + ' answered connection request from ' + initiatorID);
+        console.log('user ' + socket.id + ' answered connection request from initiator');
         var message = new Object;
         message.peer = socket.id;
         message.session = session;
-        sockets.get(initiatorID).emit('complete connection', message);
+        peerGroup.sendInitiatorMessage('complete connection', message);
     });
 
     socket.on('target ICE', function(candidate) {
-        console.log('user ' + socket.id + ' accepted ICE candidate from ' + initiatorID);
+        console.log('user ' + socket.id + ' accepted ICE candidate from initiator');
         var message = new Object;
         message.peer = socket.id;
         message.candidate = candidate;
-        sockets.get(initiatorID).emit('target accepted ICE', message);
+        peerGroup.sendInitiatorMessage('target accepted ICE', message);
     });
 
     socket.on('initiator ICE', function(message) {
         console.log('user ' + socket.id + ' accepted ICE candidate from ' + message.peer);
-        sockets.get(message.peer).emit('initiator accepted ICE', message.candidate);
+        peerGroup.sendPeerMessage(message.peer, 'initiator accepted ICE', message.candidate);
     });
 
-    updatePeers();
+    peerGroup.addPeer(socket.id, socket);
 });
